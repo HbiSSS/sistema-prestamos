@@ -4,7 +4,7 @@ const {
     crear, aprobar, liquidar, cancelar, actualizar,
     buscarPorId, listar, listarPorEstado, listarActivos,
     listarPorCliente, buscarActivosPorCliente, obtenerPrestamoActivo,
-    listarConMora, actualizarContadores, obtenerResumenCartera
+    listarConMora, actualizarContadores, obtenerResumenCartera, revertirASolicitado
 } = require('../controllers/prestamo.controller');
 
 const router = Router();
@@ -26,5 +26,6 @@ router.put('/:id/aprobar', aprobar);                              // PUT /api/pr
 router.put('/:id/liquidar', liquidar);                            // PUT /api/prestamos/5/liquidar
 router.put('/:id/cancelar', cancelar);                            // PUT /api/prestamos/5/cancelar
 router.put('/:id/contadores', actualizarContadores);              // PUT /api/prestamos/5/contadores
+router.put('/:id/revertir', revertirASolicitado);
 
 module.exports = router;
