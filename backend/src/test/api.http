@@ -6,7 +6,7 @@ POST {{host}}/api/auth/registrar
 Content-Type: application/json
 
 {
-  "username": "admin",
+  "username": "lucy",
   "password": "admin123",
   "nombre_completo": "Administrador",
   "email": "admin@test.com",
