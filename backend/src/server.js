@@ -44,6 +44,7 @@ app.use('/api/grupos', require('./routes/grupo.routes'));
 app.use('/api/clientes', require('./routes/cliente.routes'));
 app.use('/api/prestamos', require('./routes/prestamo.routes'));
 app.use('/api/cuotas', require('./routes/cuota.routes'));
+app.use('/api/usuarios', require('./routes/usuario.routes'));
 
 // Iniciar servidor
 const iniciar = async () => {

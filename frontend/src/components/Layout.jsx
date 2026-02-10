@@ -3,8 +3,8 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
     LayoutDashboard, Users, Handshake, Shield, FolderOpen,
-    CreditCard, CalendarCheck, LogOut, Menu, X, DollarSign, ChevronDown,
-    ClipboardList
+    CreditCard, CalendarCheck, LogOut, Menu, X, DollarSign,
+    ClipboardList, UserCog
 } from 'lucide-react';
 
 const menuItems = [
@@ -18,6 +18,11 @@ const menuItems = [
     { path: '/avales', label: 'Avales', icon: Shield },
 ];
 
+// Items solo para SUPER_ADMIN
+const menuAdmin = [
+    { path: '/usuarios', label: 'Usuarios', icon: UserCog },
+];
+
 const Layout = () => {
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const { usuario, logout } = useAuth();
@@ -28,6 +33,10 @@ const Layout = () => {
         logout();
         navigate('/login');
     };
+
+    // Combinar menú según rol
+    const esSuperAdmin = usuario?.rol === 'SUPER_ADMIN';
+    const todosLosMenus = esSuperAdmin ? [...menuItems, ...menuAdmin] : menuItems;
 
     return (
         <div className="min-h-screen bg-gray-100 flex">
@@ -77,6 +86,36 @@ const Layout = () => {
                                 </Link>
                             );
                         })}
+
+                        {/* Sección Admin - solo SUPER_ADMIN */}
+                        {esSuperAdmin && (
+                            <>
+                                <div className="pt-4 pb-2">
+                                    <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                                        Administración
+                                    </p>
+                                </div>
+                                {menuAdmin.map((item) => {
+                                    const Icon = item.icon;
+                                    const isActive = location.pathname === item.path;
+                                    return (
+                                        <Link
+                                            key={item.path}
+                                            to={item.path}
+                                            onClick={() => setSidebarOpen(false)}
+                                            className={`flex items-center gap-3 px-4 py-3 rounded-lg transition text-sm font-medium ${
+                                                isActive
+                                                    ? 'bg-purple-50 text-purple-700'
+                                                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                                            }`}
+                                        >
+                                            <Icon className="w-5 h-5" />
+                                            {item.label}
+                                        </Link>
+                                    );
+                                })}
+                            </>
+                        )}
                     </nav>
 
                     {/* Usuario */}
@@ -89,7 +128,13 @@ const Layout = () => {
                             </div>
                             <div className="flex-1 min-w-0">
                                 <p className="text-sm font-medium text-gray-800 truncate">{usuario?.nombre}</p>
-                                <p className="text-xs text-gray-500">{usuario?.rol}</p>
+                                <p className="text-xs text-gray-500">
+                                    {usuario?.rol === 'SUPER_ADMIN' ? '🔑 Super Admin' :
+                                        usuario?.rol === 'ADMINISTRADOR' ? '👤 Administrador' :
+                                            usuario?.rol === 'CAJERO' ? '💰 Cajero' :
+                                                usuario?.rol === 'CONSULTA' ? '👁 Consulta' :
+                                                    usuario?.rol}
+                                </p>
                             </div>
                         </div>
                         <button
@@ -111,7 +156,7 @@ const Layout = () => {
                         <Menu className="w-6 h-6" />
                     </button>
                     <h2 className="text-lg font-semibold text-gray-800">
-                        {menuItems.find(i => i.path === location.pathname)?.label || 'Dashboard'}
+                        {todosLosMenus.find(i => i.path === location.pathname)?.label || 'Dashboard'}
                     </h2>
                 </header>
 

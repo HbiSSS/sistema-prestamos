@@ -11,6 +11,7 @@ import Prestamos from './pages/Prestamos';
 import Cuotas from './pages/Cuotas';
 import Cobranza from './pages/Cobranza';
 import ServerWakeup from './components/ServerWakeup';
+import Usuarios from './pages/Usuarios';
 
 // Ruta protegida
 const ProtectedRoute = ({ children }) => {
@@ -44,6 +45,7 @@ const AppRoutes = () => {
                 <Route path="grupos" element={<Grupos />} />
                 <Route path="avales" element={<Avales />} />
                 <Route path="cobranza" element={<Cobranza />} />
+                <Route path="usuarios" element={<Usuarios />} />
             </Route>
         </Routes>
     );
