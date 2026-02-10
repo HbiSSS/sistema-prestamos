@@ -33,7 +33,7 @@ const Login = () => {
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
                 <div className="text-center mb-8">
                     <div className="bg-blue-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <DollarSign className="w-8 h-8 text-white" />
+                        <img src="/logoSoluciones.svg" alt="Soluciones" className="w-full h-full object-cover" />
                     </div>
                     <h1 className="text-2xl font-bold text-gray-800">Sistema de Préstamos</h1>
                     <p className="text-gray-500 mt-1">Ingresa tus credenciales</p>
