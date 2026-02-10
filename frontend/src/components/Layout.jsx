@@ -54,10 +54,10 @@ const Layout = () => {
                     {/* Logo */}
                     <div className="p-5 border-b flex items-center gap-3">
                         <div className="bg-blue-600 w-10 h-10 rounded-lg flex items-center justify-center">
-                            <DollarSign className="w-6 h-6 text-white" />
+                            <img src="/logoSoluciones.svg" alt="Soluciones" className="w-full h-full object-cover" />
                         </div>
                         <div>
-                            <h1 className="font-bold text-gray-800">Préstamos</h1>
+                            <h1 className="font-bold text-gray-800">Soluciones</h1>
                             <p className="text-xs text-gray-500">Sistema de Gestión</p>
                         </div>
                         <button onClick={() => setSidebarOpen(false)} className="lg:hidden ml-auto text-gray-400">
