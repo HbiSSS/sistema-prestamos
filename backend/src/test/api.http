@@ -1,0 +1,242 @@
+### Verificar que el servidor funciona
+GET {{host}}
+
+### Registrar usuario de prueba
+POST {{host}}/api/auth/registrar
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "admin123",
+  "nombre_completo": "Administrador",
+  "email": "admin@test.com",
+  "id_rol": 1
+}
+
+### Login
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "chris",
+  "password": "admin123"
+}
+
+### Ver perfil
+GET {{host}}/api/auth/perfil
+Authorization: Bearer {{token}}
+
+### Cambiar contraseña
+PUT {{host}}/api/auth/cambiar-password
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "password_actual": "admin123",
+  "password_nueva": "nueva123"
+}
+
+### ===================== PROMOTORES =====================
+
+### Listar promotores activos
+GET {{host}}/api/promotores
+Authorization: Bearer {{token}}
+
+### Crear promotor
+POST {{host}}/api/promotores
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "nombre": "Juan Pérez",
+  "telefono": "4491234567",
+  "direccion": "Calle Principal 123"
+}
+
+### Buscar promotor por nombre
+GET {{host}}/api/promotores/buscar?nombre=Juan
+Authorization: Bearer {{token}}
+
+### ===================== AVALES =====================
+
+### Listar avales activos
+GET {{host}}/api/avales
+Authorization: Bearer {{token}}
+
+### Crear aval
+POST {{host}}/api/avales
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "nombre": "María López",
+  "telefono": "4499876543",
+  "direccion": "Av. Secundaria 456"
+}
+
+### ===================== GRUPOS =====================
+
+### Listar grupos activos
+GET {{host}}/api/grupos
+Authorization: Bearer {{token}}
+
+### Crear grupo
+POST {{host}}/api/grupos
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "nombre": "Grupo Norte",
+  "descripcion": "Clientes zona norte",
+  "id_promotor": 1
+}
+
+### ===================== CLIENTES =====================
+
+### Listar clientes activos
+GET {{host}}/api/clientes
+Authorization: Bearer {{token}}
+
+### Listar todos los clientes
+GET {{host}}/api/clientes/todos
+Authorization: Bearer {{token}}
+
+### Clientes disponibles para préstamo
+GET {{host}}/api/clientes/disponibles
+Authorization: Bearer {{token}}
+
+### Buscar cliente por nombre
+GET {{host}}/api/clientes/buscar?nombre=Juan
+Authorization: Bearer {{token}}
+
+### Buscar cliente por teléfono
+GET {{host}}/api/clientes/buscar-telefono?telefono=449
+Authorization: Bearer {{token}}
+
+### Clientes por promotor
+GET {{host}}/api/clientes/promotor/1
+Authorization: Bearer {{token}}
+
+### Crear cliente
+POST {{host}}/api/clientes
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "nombre": "Carlos García",
+  "direccion": "Calle Reforma 789",
+  "telefono": "4491112233",
+  "telefono_secundario": "4494445566",
+  "id_promotor": 1,
+  "id_grupo": null,
+  "id_aval": null,
+  "notas": "Cliente nuevo"
+}
+
+### Verificar si tiene préstamo activo
+GET {{host}}/api/clientes/1/prestamo-activo
+Authorization: Bearer {{token}}
+
+### ===================== PRESTAMOS =====================
+
+### Listar todos los préstamos
+GET {{host}}/api/prestamos
+Authorization: Bearer {{token}}
+
+### Listar préstamos activos
+GET {{host}}/api/prestamos/activos
+Authorization: Bearer {{token}}
+
+### Préstamos con mora
+GET {{host}}/api/prestamos/mora
+Authorization: Bearer {{token}}
+
+### Resumen de cartera
+GET {{host}}/api/prestamos/resumen
+Authorization: Bearer {{token}}
+
+### Préstamos por estado
+GET {{host}}/api/prestamos/estado/ACTIVO
+Authorization: Bearer {{token}}
+
+### Préstamos de un cliente
+GET {{host}}/api/prestamos/cliente/2
+Authorization: Bearer {{token}}
+
+### Crear préstamo
+POST {{host}}/api/prestamos
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "id_cliente": 2,
+  "monto_prestado": 10000,
+  "tasa_interes": 10,
+  "frecuencia_pago": "QUINCENAL",
+  "numero_cuotas": 12,
+  "fecha_primer_pago": "2026-03-01",
+  "notas": "Préstamo de prueba"
+}
+
+### Aprobar préstamo (genera cuotas automáticamente)
+PUT {{host}}/api/prestamos/1/aprobar
+Authorization: Bearer {{token}}
+
+### Liquidar préstamo
+PUT {{host}}/api/prestamos/1/liquidar
+Authorization: Bearer {{token}}
+
+### Cancelar préstamo
+PUT {{host}}/api/prestamos/1/cancelar
+Authorization: Bearer {{token}}
+
+### ===================== CUOTAS =====================
+
+### Listar cuotas de un préstamo
+GET {{host}}/api/cuotas/prestamo/2
+Authorization: Bearer {{token}}
+
+### Cuotas pendientes de un préstamo
+GET {{host}}/api/cuotas/prestamo/1/pendientes
+Authorization: Bearer {{token}}
+
+### Próxima cuota a pagar
+GET {{host}}/api/cuotas/prestamo/1/proxima
+Authorization: Bearer {{token}}
+
+### Registrar pago de cuota
+PUT {{host}}/api/cuotas/2/pagar
+Authorization: Bearer {{token}}
+
+### Registrar pago con historial
+PUT {{host}}/api/cuotas/2/pagar-historial
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "id_usuario": 1
+}
+
+### Actualizar cuotas vencidas (marcar como vencidas las atrasadas)
+PUT {{host}}/api/cuotas/actualizar-vencidas
+Authorization: Bearer {{token}}
+
+### Listar todas las cuotas vencidas
+GET {{host}}/api/cuotas/vencidas
+Authorization: Bearer {{token}}
+
+### Cartera vencida (resumen por préstamo)
+GET {{host}}/api/cuotas/cartera-vencida
+Authorization: Bearer {{token}}
+
+### Cartera vencida filtrada por promotor
+GET {{host}}/api/cuotas/cartera-vencida?idPromotor=1
+Authorization: Bearer {{token}}
+
+### Resumen de cobranza (próxima cuota de cada préstamo)
+GET {{host}}/api/cuotas/resumen-cobranza
+Authorization: Bearer {{token}}
+
+### Cuotas de la semana por promotor
+GET {{host}}/api/cuotas/semana?idPromotor=1&fechaInicio=2026-03-01&fechaFin=2026-03-07
+Authorization: Bearer {{token}}
