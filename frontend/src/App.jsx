@@ -10,6 +10,7 @@ import Clientes from './pages/Clientes';
 import Prestamos from './pages/Prestamos';
 import Cuotas from './pages/Cuotas';
 import Cobranza from './pages/Cobranza';
+import ServerWakeup from './components/ServerWakeup';
 
 // Ruta protegida
 const ProtectedRoute = ({ children }) => {
@@ -51,6 +52,7 @@ const AppRoutes = () => {
 const App = () => (
     <BrowserRouter>
         <AuthProvider>
+            <ServerWakeup />
             <AppRoutes />
         </AuthProvider>
     </BrowserRouter>
