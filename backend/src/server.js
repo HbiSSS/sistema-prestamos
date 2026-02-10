@@ -12,7 +12,7 @@ const PORT = process.env.PORT || 3000;
 app.use(cors({
     origin: [
         'http://localhost:5173',
-        'https://tu-app.vercel.app'  // ← pon tu dominio real de Vercel aquí
+        'https://sistema-prestamos-sable.vercel.app/'
     ],
     credentials: true
 }));
