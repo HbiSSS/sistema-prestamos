@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
-import { Plus, Search, Eye, X, Save, CheckCircle, XCircle, Pencil } from 'lucide-react';
+import { Plus, Search, Eye, X, Save, CheckCircle, XCircle, Pencil, RotateCcw } from 'lucide-react';
 
 const initialForm = { id_cliente: '', monto_prestado: '', tasa_interes: '', frecuencia_pago: 'QUINCENAL', numero_cuotas: '', fecha_primer_pago: '', notas: '' };
 
@@ -130,6 +130,16 @@ const Prestamos = () => {
         } catch (err) { alert(err.response?.data?.error || 'Error al liquidar'); }
     };
 
+    // CORREGIDO: Ahora está DENTRO del componente con acceso a cargar, detalleOpen y verDetalle
+    const handleRevertir = async (id) => {
+        if (!confirm('¿Revertir este préstamo a SOLICITADO? Se eliminarán todas las cuotas generadas.')) return;
+        try {
+            await api.put(`/prestamos/${id}/revertir`);
+            cargar();
+            if (detalleOpen?.id_prestamo === id) verDetalle(id);
+        } catch (err) { alert(err.response?.data?.error || 'Error al revertir'); }
+    };
+
     const verDetalle = async (id) => {
         try {
             const [pRes, cRes] = await Promise.all([
@@ -156,10 +166,21 @@ const Prestamos = () => {
         return matchBusqueda && matchEstado;
     });
 
-    // Solo SOLICITADO permite edición completa
     const esEditable = (estado) => estado === 'SOLICITADO';
-    // ACTIVO solo permite editar notas
     const soloNotas = (estado) => estado === 'ACTIVO';
+
+    // Clientes que ya tienen préstamo activo o solicitado
+    const clientesConPrestamo = new Set(
+        prestamos
+            .filter(p => p.estado === 'ACTIVO' || p.estado === 'SOLICITADO')
+            .map(p => p.id_cliente)
+    );
+
+    // Clientes disponibles para nuevo préstamo (excluye los que ya tienen uno activo/solicitado)
+    // Si estamos editando, incluimos al cliente actual del préstamo
+    const clientesDisponibles = clientes.filter(c =>
+        !clientesConPrestamo.has(c.id_cliente) || (editando && editando.id_cliente === c.id_cliente)
+    );
 
     if (loading) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div></div>;
 
@@ -194,6 +215,7 @@ const Prestamos = () => {
                     <table className="w-full">
                         <thead className="bg-gray-50">
                         <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase"># Prést.</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Monto</th>
@@ -205,12 +227,13 @@ const Prestamos = () => {
                         </thead>
                         <tbody className="divide-y divide-gray-200">
                         {filtrados.length === 0 ? (
-                            <tr><td colSpan="7" className="px-6 py-8 text-center text-gray-500">No se encontraron préstamos</td></tr>
+                            <tr><td colSpan="8" className="px-6 py-8 text-center text-gray-500">No se encontraron préstamos</td></tr>
                         ) : filtrados.map((p) => (
                             <tr key={p.id_prestamo} className="hover:bg-gray-50">
+                                <td className="px-6 py-4 text-sm text-gray-500">{p.id_cliente}</td>
                                 <td className="px-6 py-4">
                                     <p className="font-medium text-gray-800">{p.Cliente?.nombre || '—'}</p>
-                                    <p className="text-xs text-gray-500">{p.frecuencia_pago}</p>
+                                    <p className="text-xs text-gray-500">{p.Cliente?.telefono || '—'} · {p.frecuencia_pago}</p>
                                 </td>
                                 <td className="px-6 py-4 text-sm text-gray-600">#{p.numero_prestamo}</td>
                                 <td className="px-6 py-4">
@@ -239,6 +262,12 @@ const Prestamos = () => {
                                                 <button onClick={() => handleCancelar(p.id_prestamo)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition" title="Cancelar"><XCircle className="w-4 h-4" /></button>
                                             </>
                                         )}
+                                        {/* Botón revertir en la tabla - solo si ACTIVO y 0 cuotas pagadas */}
+                                        {p.estado === 'ACTIVO' && p.cuotas_pagadas === 0 && (
+                                            <button onClick={() => handleRevertir(p.id_prestamo)} className="p-2 text-yellow-600 hover:bg-yellow-50 rounded-lg transition" title="Revertir a Solicitado">
+                                                <RotateCcw className="w-4 h-4" />
+                                            </button>
+                                        )}
                                     </div>
                                 </td>
                             </tr>
@@ -261,7 +290,6 @@ const Prestamos = () => {
                         <form onSubmit={handleSubmit} className="p-6 space-y-4">
                             {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded-lg text-sm">{error}</div>}
 
-                            {/* Aviso si solo notas */}
                             {editando && soloNotas(editando.estado) && (
                                 <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-2 rounded-lg text-sm">
                                     Este préstamo ya está activo. Solo puedes modificar las notas.
@@ -274,7 +302,7 @@ const Prestamos = () => {
                                         className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none disabled:bg-gray-100 disabled:text-gray-500"
                                         required disabled={editando && soloNotas(editando.estado)}>
                                     <option value="">Seleccionar cliente...</option>
-                                    {clientes.map(c => <option key={c.id_cliente} value={c.id_cliente}>{c.nombre}</option>)}
+                                    {clientesDisponibles.map(c => <option key={c.id_cliente} value={c.id_cliente}>{c.nombre} — Tel: {c.telefono || 'S/N'} (ID: {c.id_cliente})</option>)}
                                 </select>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
@@ -297,6 +325,7 @@ const Prestamos = () => {
                                     <select value={form.frecuencia_pago} onChange={(e) => setForm({ ...form, frecuencia_pago: e.target.value })}
                                             className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none disabled:bg-gray-100 disabled:text-gray-500"
                                             disabled={editando && soloNotas(editando.estado)}>
+                                        <option value="SEMANAL">Semanal</option>
                                         <option value="QUINCENAL">Quincenal</option>
                                         <option value="MENSUAL">Mensual</option>
                                     </select>
@@ -315,7 +344,6 @@ const Prestamos = () => {
                                        required disabled={editando && soloNotas(editando.estado)} />
                             </div>
 
-                            {/* Preview de cálculos - solo si es nuevo o SOLICITADO */}
                             {preview && (!editando || esEditable(editando.estado)) && (
                                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-2 text-sm">
                                     <p className="font-semibold text-blue-800">Resumen del préstamo</p>
@@ -399,6 +427,7 @@ const Prestamos = () => {
                                 </div>
                             )}
 
+                            {/* Botones de acción según estado */}
                             {detalleOpen.estado === 'SOLICITADO' && (
                                 <div className="flex gap-3">
                                     <button onClick={() => handleAprobar(detalleOpen.id_prestamo)} className="flex-1 flex items-center justify-center gap-2 bg-green-600 text-white px-4 py-2.5 rounded-lg hover:bg-green-700 transition font-medium">
@@ -411,11 +440,19 @@ const Prestamos = () => {
                             )}
 
                             {detalleOpen.estado === 'ACTIVO' && (
-                                <button onClick={() => handleLiquidar(detalleOpen.id_prestamo)} className="flex items-center gap-2 bg-gray-600 text-white px-4 py-2.5 rounded-lg hover:bg-gray-700 transition font-medium">
-                                    Liquidar Préstamo
-                                </button>
+                                <div className="flex gap-3">
+                                    <button onClick={() => handleLiquidar(detalleOpen.id_prestamo)} className="flex items-center gap-2 bg-gray-600 text-white px-4 py-2.5 rounded-lg hover:bg-gray-700 transition font-medium">
+                                        Liquidar Préstamo
+                                    </button>
+                                    {detalleOpen.cuotas_pagadas === 0 && (
+                                        <button onClick={() => handleRevertir(detalleOpen.id_prestamo)} className="flex items-center gap-2 bg-yellow-500 text-white px-4 py-2.5 rounded-lg hover:bg-yellow-600 transition font-medium">
+                                            <RotateCcw className="w-4 h-4" /> Revertir a Solicitado
+                                        </button>
+                                    )}
+                                </div>
                             )}
 
+                            {/* Tabla de cuotas */}
                             {cuotasDetalle.length > 0 && (
                                 <div>
                                     <h4 className="font-semibold text-gray-800 mb-3">Cuotas ({cuotasDetalle.length})</h4>

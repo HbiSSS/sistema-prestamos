@@ -1,5 +1,5 @@
-const { Op } = require('sequelize');
-const { sequelize, Prestamo, Cliente, Cuota, Promotor, Grupo, Aval } = require('../models');
+const {Op} = require('sequelize');
+const {sequelize, Prestamo, Cliente, Cuota, Promotor, Grupo, Aval} = require('../models');
 const Decimal = require('decimal.js');
 
 const includesCliente = [
@@ -7,9 +7,9 @@ const includesCliente = [
         model: Cliente,
         attributes: ['id_cliente', 'nombre', 'telefono', 'direccion'],
         include: [
-            { model: Promotor, attributes: ['id_promotor', 'nombre'] },
-            { model: Grupo, attributes: ['id_grupo', 'nombre'] },
-            { model: Aval, attributes: ['id_aval', 'nombre', 'telefono'] }
+            {model: Promotor, attributes: ['id_promotor', 'nombre']},
+            {model: Grupo, attributes: ['id_grupo', 'nombre']},
+            {model: Aval, attributes: ['id_aval', 'nombre', 'telefono']}
         ]
     }
 ];
@@ -17,7 +17,7 @@ const includesCliente = [
 // Obtener siguiente número de préstamo para un cliente
 const obtenerSiguienteNumero = async (idCliente) => {
     const max = await Prestamo.max('numero_prestamo', {
-        where: { id_cliente: idCliente }
+        where: {id_cliente: idCliente}
     });
     return (max || 0) + 1;
 };
@@ -29,8 +29,21 @@ const crear = async (req, res) => {
             numero_cuotas, fecha_primer_pago, notas
         } = req.body;
 
+        // Verificar si el cliente ya tiene un préstamo activo o solicitado
+        const prestamoExistente = await Prestamo.findOne({
+            where: {
+                id_cliente,
+                estado: { [Op.in]: ['SOLICITADO', 'ACTIVO'] }
+            }
+        });
+
+        if (prestamoExistente) {
+            return res.status(400).json({
+                error: 'Este cliente ya tiene un préstamo en proceso o activo'
+            });
+        }
         if (!id_cliente || !monto_prestado || !tasa_interes || !frecuencia_pago || !numero_cuotas || !fecha_primer_pago) {
-            return res.status(400).json({ error: 'Campos obligatorios: id_cliente, monto_prestado, tasa_interes, frecuencia_pago, numero_cuotas, fecha_primer_pago' });
+            return res.status(400).json({error: 'Campos obligatorios: id_cliente, monto_prestado, tasa_interes, frecuencia_pago, numero_cuotas, fecha_primer_pago'});
         }
 
         // Cálculos financieros con decimal.js
@@ -68,35 +81,35 @@ const crear = async (req, res) => {
             include: includesCliente
         });
 
-        res.status(201).json({ mensaje: 'Préstamo creado exitosamente', prestamo: prestamoCompleto });
+        res.status(201).json({mensaje: 'Préstamo creado exitosamente', prestamo: prestamoCompleto});
     } catch (error) {
         console.error('Error al crear préstamo:', error);
-        res.status(500).json({ error: 'Error al crear préstamo' });
+        res.status(500).json({error: 'Error al crear préstamo'});
     }
 };
 
 const aprobar = async (req, res) => {
     const t = await sequelize.transaction();
     try {
-        const prestamo = await Prestamo.findByPk(req.params.id, { transaction: t });
+        const prestamo = await Prestamo.findByPk(req.params.id, {transaction: t});
         if (!prestamo) {
             await t.rollback();
-            return res.status(404).json({ error: 'Préstamo no encontrado' });
+            return res.status(404).json({error: 'Préstamo no encontrado'});
         }
 
         if (prestamo.estado !== 'SOLICITADO') {
             await t.rollback();
-            return res.status(400).json({ error: 'Solo se pueden aprobar préstamos en estado SOLICITADO' });
+            return res.status(400).json({error: 'Solo se pueden aprobar préstamos en estado SOLICITADO'});
         }
 
         // Actualizar estado
         await prestamo.update({
             estado: 'ACTIVO',
             fecha_aprobacion: new Date()
-        }, { transaction: t });
+        }, {transaction: t});
 
         // Generar cuotas
-        const diasIncremento = prestamo.frecuencia_pago === 'QUINCENAL' ? 15 : 30;
+        const diasIncremento = prestamo.frecuencia_pago === 'SEMANAL' ? 7 : prestamo.frecuencia_pago === 'QUINCENAL' ? 15 : 30;
         const fechaBase = new Date(prestamo.fecha_primer_pago);
 
         for (let i = 0; i < prestamo.numero_cuotas; i++) {
@@ -112,7 +125,7 @@ const aprobar = async (req, res) => {
                 monto_pagado: 0,
                 monto_mora: 0,
                 dias_atraso: 0
-            }, { transaction: t });
+            }, {transaction: t});
         }
 
         await t.commit();
@@ -121,11 +134,76 @@ const aprobar = async (req, res) => {
             include: includesCliente
         });
 
-        res.json({ mensaje: 'Préstamo aprobado y cuotas generadas', prestamo: prestamoActualizado });
+        res.json({mensaje: 'Préstamo aprobado y cuotas generadas', prestamo: prestamoActualizado});
     } catch (error) {
         await t.rollback();
         console.error('Error al aprobar préstamo:', error);
-        res.status(500).json({ error: 'Error al aprobar préstamo' });
+        res.status(500).json({error: 'Error al aprobar préstamo'});
+    }
+};
+
+const revertirASolicitado = async (req, res) => {
+    const t = await sequelize.transaction();
+    try {
+        const prestamo = await Prestamo.findByPk(req.params.id, {transaction: t});
+        if (!prestamo) {
+            await t.rollback();
+            return res.status(404).json({error: 'Préstamo no encontrado'});
+        }
+
+        if (prestamo.estado !== 'ACTIVO') {
+            await t.rollback();
+            return res.status(400).json({error: 'Solo se pueden revertir préstamos ACTIVOS'});
+        }
+
+        // Verificar que no tenga cuotas pagadas
+        const pagadas = await Cuota.count({
+            where: {id_prestamo: prestamo.id_prestamo, estado: 'PAGADA'},
+            transaction: t
+        });
+
+        if (pagadas > 0) {
+            await t.rollback();
+            return res.status(400).json({error: 'No se puede revertir, ya tiene cuotas pagadas'});
+        }
+
+        // 1. Obtener IDs de las cuotas de este préstamo
+        const cuotas = await Cuota.findAll({
+            where: {id_prestamo: prestamo.id_prestamo},
+            attributes: ['id_cuota'],
+            transaction: t
+        });
+        const cuotaIds = cuotas.map(c => c.id_cuota);
+
+        // 2. Eliminar historial de pagos por id_cuota (más seguro que por id_prestamo)
+        if (cuotaIds.length > 0) {
+            await sequelize.query(
+                `DELETE FROM historial_pagos WHERE id_cuota IN (${cuotaIds.map(() => '?').join(',')})`,
+                {replacements: cuotaIds, transaction: t}
+            );
+        }
+
+        // 3. Ahora sí eliminar las cuotas
+        await Cuota.destroy({
+            where: {id_prestamo: prestamo.id_prestamo},
+            transaction: t
+        });
+
+        // 4. Revertir estado del préstamo
+        await prestamo.update({
+            estado: 'SOLICITADO',
+            fecha_aprobacion: null,
+            cuotas_pagadas: 0,
+            cuotas_pendientes: prestamo.numero_cuotas,
+            cuotas_vencidas: 0
+        }, {transaction: t});
+
+        await t.commit();
+        res.json({mensaje: 'Préstamo revertido a SOLICITADO'});
+    } catch (error) {
+        await t.rollback();
+        console.error('Error al revertir préstamo:', error);
+        res.status(500).json({error: 'Error al revertir préstamo'});
     }
 };
 
@@ -133,7 +211,7 @@ const liquidar = async (req, res) => {
     try {
         const prestamo = await Prestamo.findByPk(req.params.id);
         if (!prestamo) {
-            return res.status(404).json({ error: 'Préstamo no encontrado' });
+            return res.status(404).json({error: 'Préstamo no encontrado'});
         }
 
         await prestamo.update({
@@ -143,10 +221,10 @@ const liquidar = async (req, res) => {
             cuotas_pendientes: 0
         });
 
-        res.json({ mensaje: 'Préstamo liquidado exitosamente' });
+        res.json({mensaje: 'Préstamo liquidado exitosamente'});
     } catch (error) {
         console.error('Error al liquidar préstamo:', error);
-        res.status(500).json({ error: 'Error al liquidar préstamo' });
+        res.status(500).json({error: 'Error al liquidar préstamo'});
     }
 };
 
@@ -154,14 +232,14 @@ const cancelar = async (req, res) => {
     try {
         const prestamo = await Prestamo.findByPk(req.params.id);
         if (!prestamo) {
-            return res.status(404).json({ error: 'Préstamo no encontrado' });
+            return res.status(404).json({error: 'Préstamo no encontrado'});
         }
 
-        await prestamo.update({ estado: 'CANCELADO' });
-        res.json({ mensaje: 'Préstamo cancelado exitosamente' });
+        await prestamo.update({estado: 'CANCELADO'});
+        res.json({mensaje: 'Préstamo cancelado exitosamente'});
     } catch (error) {
         console.error('Error al cancelar préstamo:', error);
-        res.status(500).json({ error: 'Error al cancelar préstamo' });
+        res.status(500).json({error: 'Error al cancelar préstamo'});
     }
 };
 
@@ -169,7 +247,7 @@ const actualizar = async (req, res) => {
     try {
         const prestamo = await Prestamo.findByPk(req.params.id);
         if (!prestamo) {
-            return res.status(404).json({ error: 'Préstamo no encontrado' });
+            return res.status(404).json({error: 'Préstamo no encontrado'});
         }
 
         const campos = req.body;
@@ -180,10 +258,10 @@ const actualizar = async (req, res) => {
             include: includesCliente
         });
 
-        res.json({ mensaje: 'Préstamo actualizado', prestamo: prestamoActualizado });
+        res.json({mensaje: 'Préstamo actualizado', prestamo: prestamoActualizado});
     } catch (error) {
         console.error('Error al actualizar préstamo:', error);
-        res.status(500).json({ error: 'Error al actualizar préstamo' });
+        res.status(500).json({error: 'Error al actualizar préstamo'});
     }
 };
 
@@ -193,12 +271,12 @@ const buscarPorId = async (req, res) => {
             include: includesCliente
         });
         if (!prestamo) {
-            return res.status(404).json({ error: 'Préstamo no encontrado' });
+            return res.status(404).json({error: 'Préstamo no encontrado'});
         }
         res.json(prestamo);
     } catch (error) {
         console.error('Error al buscar préstamo:', error);
-        res.status(500).json({ error: 'Error al buscar préstamo' });
+        res.status(500).json({error: 'Error al buscar préstamo'});
     }
 };
 
@@ -211,61 +289,61 @@ const listar = async (req, res) => {
         res.json(prestamos);
     } catch (error) {
         console.error('Error al listar préstamos:', error);
-        res.status(500).json({ error: 'Error al listar préstamos' });
+        res.status(500).json({error: 'Error al listar préstamos'});
     }
 };
 
 const listarPorEstado = async (req, res) => {
     try {
-        const { estado } = req.params;
+        const {estado} = req.params;
         const prestamos = await Prestamo.findAll({
-            where: { estado },
+            where: {estado},
             include: includesCliente,
             order: [['fecha_creacion', 'DESC']]
         });
         res.json(prestamos);
     } catch (error) {
         console.error('Error al listar préstamos:', error);
-        res.status(500).json({ error: 'Error al listar préstamos' });
+        res.status(500).json({error: 'Error al listar préstamos'});
     }
 };
 
 const listarActivos = async (req, res) => {
     try {
         const prestamos = await Prestamo.findAll({
-            where: { estado: 'ACTIVO' },
+            where: {estado: 'ACTIVO'},
             include: includesCliente,
             order: [['fecha_creacion', 'DESC']]
         });
         res.json(prestamos);
     } catch (error) {
         console.error('Error al listar préstamos activos:', error);
-        res.status(500).json({ error: 'Error al listar préstamos' });
+        res.status(500).json({error: 'Error al listar préstamos'});
     }
 };
 
 const listarPorCliente = async (req, res) => {
     try {
         const prestamos = await Prestamo.findAll({
-            where: { id_cliente: req.params.idCliente },
+            where: {id_cliente: req.params.idCliente},
             include: includesCliente,
             order: [['numero_prestamo', 'DESC']]
         });
         res.json(prestamos);
     } catch (error) {
         console.error('Error al listar préstamos:', error);
-        res.status(500).json({ error: 'Error al listar préstamos' });
+        res.status(500).json({error: 'Error al listar préstamos'});
     }
 };
 
 const buscarActivosPorCliente = async (req, res) => {
     try {
-        const { nombre } = req.query;
+        const {nombre} = req.query;
         const prestamos = await Prestamo.findAll({
-            where: { estado: 'ACTIVO' },
+            where: {estado: 'ACTIVO'},
             include: [{
                 model: Cliente,
-                where: { nombre: { [Op.like]: `%${nombre}%` } },
+                where: {nombre: {[Op.like]: `%${nombre}%`}},
                 attributes: ['id_cliente', 'nombre', 'telefono']
             }],
             order: [[Cliente, 'nombre', 'ASC']]
@@ -273,7 +351,7 @@ const buscarActivosPorCliente = async (req, res) => {
         res.json(prestamos);
     } catch (error) {
         console.error('Error al buscar préstamos:', error);
-        res.status(500).json({ error: 'Error al buscar préstamos' });
+        res.status(500).json({error: 'Error al buscar préstamos'});
     }
 };
 
@@ -282,18 +360,18 @@ const obtenerPrestamoActivo = async (req, res) => {
         const prestamo = await Prestamo.findOne({
             where: {
                 id_cliente: req.params.idCliente,
-                estado: { [Op.in]: ['SOLICITADO', 'ACTIVO'] }
+                estado: {[Op.in]: ['SOLICITADO', 'ACTIVO']}
             },
             include: includesCliente
         });
 
         if (!prestamo) {
-            return res.status(404).json({ error: 'No tiene préstamo activo' });
+            return res.status(404).json({error: 'No tiene préstamo activo'});
         }
         res.json(prestamo);
     } catch (error) {
         console.error('Error al obtener préstamo:', error);
-        res.status(500).json({ error: 'Error al obtener préstamo' });
+        res.status(500).json({error: 'Error al obtener préstamo'});
     }
 };
 
@@ -302,7 +380,7 @@ const listarConMora = async (req, res) => {
         const prestamos = await Prestamo.findAll({
             where: {
                 estado: 'ACTIVO',
-                cuotas_vencidas: { [Op.gt]: 0 }
+                cuotas_vencidas: {[Op.gt]: 0}
             },
             include: includesCliente,
             order: [['cuotas_vencidas', 'DESC']]
@@ -310,7 +388,7 @@ const listarConMora = async (req, res) => {
         res.json(prestamos);
     } catch (error) {
         console.error('Error al listar préstamos con mora:', error);
-        res.status(500).json({ error: 'Error al listar préstamos' });
+        res.status(500).json({error: 'Error al listar préstamos'});
     }
 };
 
@@ -319,11 +397,11 @@ const actualizarContadores = async (req, res) => {
         const id = req.params.id;
 
         const [pagadas, pendientes, vencidas, saldo] = await Promise.all([
-            Cuota.count({ where: { id_prestamo: id, estado: 'PAGADA' } }),
-            Cuota.count({ where: { id_prestamo: id, estado: { [Op.in]: ['PENDIENTE', 'VENCIDA'] } } }),
-            Cuota.count({ where: { id_prestamo: id, estado: 'VENCIDA' } }),
+            Cuota.count({where: {id_prestamo: id, estado: 'PAGADA'}}),
+            Cuota.count({where: {id_prestamo: id, estado: {[Op.in]: ['PENDIENTE', 'VENCIDA']}}}),
+            Cuota.count({where: {id_prestamo: id, estado: 'VENCIDA'}}),
             Cuota.sum('monto_cuota', {
-                where: { id_prestamo: id, estado: { [Op.ne]: 'PAGADA' } }
+                where: {id_prestamo: id, estado: {[Op.ne]: 'PAGADA'}}
             })
         ]);
 
@@ -332,29 +410,35 @@ const actualizarContadores = async (req, res) => {
             cuotas_pendientes: pendientes,
             cuotas_vencidas: vencidas,
             saldo_pendiente: saldo || 0
-        }, { where: { id_prestamo: id } });
+        }, {where: {id_prestamo: id}});
 
-        res.json({ mensaje: 'Contadores actualizados', cuotas_pagadas: pagadas, cuotas_pendientes: pendientes, cuotas_vencidas: vencidas, saldo_pendiente: saldo || 0 });
+        res.json({
+            mensaje: 'Contadores actualizados',
+            cuotas_pagadas: pagadas,
+            cuotas_pendientes: pendientes,
+            cuotas_vencidas: vencidas,
+            saldo_pendiente: saldo || 0
+        });
     } catch (error) {
         console.error('Error al actualizar contadores:', error);
-        res.status(500).json({ error: 'Error al actualizar contadores' });
+        res.status(500).json({error: 'Error al actualizar contadores'});
     }
 };
 
 const obtenerResumenCartera = async (req, res) => {
     try {
         const [resultado] = await sequelize.query(`
-            SELECT
-                COALESCE(SUM(monto_prestado), 0) as total_prestado,
-                COALESCE(SUM(saldo_pendiente), 0) as total_por_cobrar,
-                COALESCE(SUM(CASE WHEN cuotas_vencidas > 0 THEN saldo_pendiente ELSE 0 END), 0) as total_vencido
-            FROM prestamos WHERE estado = 'ACTIVO'
+            SELECT COALESCE(SUM(monto_prestado), 0)                                                as total_prestado,
+                   COALESCE(SUM(saldo_pendiente), 0)                                               as total_por_cobrar,
+                   COALESCE(SUM(CASE WHEN cuotas_vencidas > 0 THEN saldo_pendiente ELSE 0 END), 0) as total_vencido
+            FROM prestamos
+            WHERE estado = 'ACTIVO'
         `);
 
         res.json(resultado[0]);
     } catch (error) {
         console.error('Error al obtener resumen:', error);
-        res.status(500).json({ error: 'Error al obtener resumen' });
+        res.status(500).json({error: 'Error al obtener resumen'});
     }
 };
 
@@ -362,5 +446,5 @@ module.exports = {
     crear, aprobar, liquidar, cancelar, actualizar,
     buscarPorId, listar, listarPorEstado, listarActivos,
     listarPorCliente, buscarActivosPorCliente, obtenerPrestamoActivo,
-    listarConMora, actualizarContadores, obtenerResumenCartera
+    listarConMora, actualizarContadores, obtenerResumenCartera, revertirASolicitado
 };

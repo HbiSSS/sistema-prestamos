@@ -92,6 +92,7 @@ const Clientes = () => {
                     <table className="w-full">
                         <thead className="bg-gray-50">
                         <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Teléfono</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Promotor</th>
@@ -102,9 +103,10 @@ const Clientes = () => {
                         </thead>
                         <tbody className="divide-y divide-gray-200">
                         {filtrados.length === 0 ? (
-                            <tr><td colSpan="6" className="px-6 py-8 text-center text-gray-500">No se encontraron clientes</td></tr>
+                            <tr><td colSpan="7" className="px-6 py-8 text-center text-gray-500">No se encontraron clientes</td></tr>
                         ) : filtrados.map((c) => (
                             <tr key={c.id_cliente} className="hover:bg-gray-50">
+                                <td className="px-6 py-4 text-sm text-gray-500">{c.id_cliente}</td>
                                 <td className="px-6 py-4">
                                     <div className="flex items-center gap-3">
                                         <div className="w-9 h-9 bg-indigo-100 rounded-full flex items-center justify-center">
@@ -148,6 +150,7 @@ const Clientes = () => {
                         </div>
                         <div className="p-6 space-y-3 text-sm">
                             <div className="grid grid-cols-2 gap-3">
+                                <div><span className="text-gray-500">ID:</span><p className="font-medium">{detalleOpen.id_cliente}</p></div>
                                 <div><span className="text-gray-500">Nombre:</span><p className="font-medium">{detalleOpen.nombre}</p></div>
                                 <div><span className="text-gray-500">Teléfono:</span><p className="font-medium">{detalleOpen.telefono || '—'}</p></div>
                                 <div><span className="text-gray-500">Tel. Secundario:</span><p className="font-medium">{detalleOpen.telefono_secundario || '—'}</p></div>
