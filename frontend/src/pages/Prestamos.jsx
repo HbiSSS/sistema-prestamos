@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
-import { Plus, Search, Eye, X, Save, CheckCircle, XCircle, Filter } from 'lucide-react';
+import { Plus, Search, Eye, X, Save, CheckCircle, XCircle, Pencil } from 'lucide-react';
 
 const initialForm = { id_cliente: '', monto_prestado: '', tasa_interes: '', frecuencia_pago: 'QUINCENAL', numero_cuotas: '', fecha_primer_pago: '', notas: '' };
 
@@ -18,6 +18,7 @@ const Prestamos = () => {
     const [busqueda, setBusqueda] = useState('');
     const [filtroEstado, setFiltroEstado] = useState('');
     const [modalOpen, setModalOpen] = useState(false);
+    const [editando, setEditando] = useState(null);
     const [detalleOpen, setDetalleOpen] = useState(null);
     const [cuotasDetalle, setCuotasDetalle] = useState([]);
     const [form, setForm] = useState(initialForm);
@@ -41,7 +42,6 @@ const Prestamos = () => {
 
     useEffect(() => { cargar(); }, []);
 
-    // Preview de cálculos
     useEffect(() => {
         const { monto_prestado, tasa_interes, numero_cuotas } = form;
         if (monto_prestado && tasa_interes && numero_cuotas) {
@@ -56,18 +56,51 @@ const Prestamos = () => {
         }
     }, [form.monto_prestado, form.tasa_interes, form.numero_cuotas]);
 
+    const abrirCrear = () => {
+        setEditando(null);
+        setForm(initialForm);
+        setError('');
+        setModalOpen(true);
+    };
+
+    const abrirEditar = (p) => {
+        setEditando(p);
+        setForm({
+            id_cliente: p.id_cliente,
+            monto_prestado: p.monto_prestado,
+            tasa_interes: p.estado === 'SOLICITADO' ? (p.tasa_interes * 100) : p.tasa_interes,
+            frecuencia_pago: p.frecuencia_pago,
+            numero_cuotas: p.numero_cuotas,
+            fecha_primer_pago: p.fecha_primer_pago ? p.fecha_primer_pago.split('T')[0] : '',
+            notas: p.notas || ''
+        });
+        setError('');
+        setModalOpen(true);
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
         try {
-            await api.post('/prestamos', {
+            const datos = {
                 ...form,
                 monto_prestado: parseFloat(form.monto_prestado),
                 tasa_interes: parseFloat(form.tasa_interes),
                 numero_cuotas: parseInt(form.numero_cuotas)
-            });
-            setModalOpen(false); setForm(initialForm); cargar();
-        } catch (err) { setError(err.response?.data?.error || 'Error al crear préstamo'); }
+            };
+
+            if (editando) {
+                await api.put(`/prestamos/${editando.id_prestamo}`, datos);
+            } else {
+                await api.post('/prestamos', datos);
+            }
+            setModalOpen(false);
+            setForm(initialForm);
+            setEditando(null);
+            cargar();
+        } catch (err) {
+            setError(err.response?.data?.error || `Error al ${editando ? 'actualizar' : 'crear'} préstamo`);
+        }
     };
 
     const handleAprobar = async (id) => {
@@ -123,6 +156,11 @@ const Prestamos = () => {
         return matchBusqueda && matchEstado;
     });
 
+    // Solo SOLICITADO permite edición completa
+    const esEditable = (estado) => estado === 'SOLICITADO';
+    // ACTIVO solo permite editar notas
+    const soloNotas = (estado) => estado === 'ACTIVO';
+
     if (loading) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div></div>;
 
     return (
@@ -144,7 +182,7 @@ const Prestamos = () => {
                         <option value="CANCELADO">Cancelado</option>
                     </select>
                 </div>
-                <button onClick={() => { setForm(initialForm); setError(''); setModalOpen(true); }}
+                <button onClick={abrirCrear}
                         className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg hover:bg-blue-700 transition font-medium">
                     <Plus className="w-5 h-5" /> Nuevo Préstamo
                 </button>
@@ -190,6 +228,11 @@ const Prestamos = () => {
                                 <td className="px-6 py-4 text-center">
                                     <div className="flex items-center justify-center gap-1">
                                         <button onClick={() => verDetalle(p.id_prestamo)} className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition" title="Ver detalle"><Eye className="w-4 h-4" /></button>
+                                        {(esEditable(p.estado) || soloNotas(p.estado)) && (
+                                            <button onClick={() => abrirEditar(p)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition" title="Editar">
+                                                <Pencil className="w-4 h-4" />
+                                            </button>
+                                        )}
                                         {p.estado === 'SOLICITADO' && (
                                             <>
                                                 <button onClick={() => handleAprobar(p.id_prestamo)} className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition" title="Aprobar"><CheckCircle className="w-4 h-4" /></button>
@@ -205,20 +248,31 @@ const Prestamos = () => {
                 </div>
             </div>
 
-            {/* Modal Crear */}
+            {/* Modal Crear / Editar */}
             {modalOpen && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
                     <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
                         <div className="flex items-center justify-between p-6 border-b sticky top-0 bg-white">
-                            <h3 className="text-lg font-semibold text-gray-800">Nuevo Préstamo</h3>
-                            <button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+                            <h3 className="text-lg font-semibold text-gray-800">
+                                {editando ? `Editar Préstamo #${editando.numero_prestamo}` : 'Nuevo Préstamo'}
+                            </h3>
+                            <button onClick={() => { setModalOpen(false); setEditando(null); }} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
                         </div>
                         <form onSubmit={handleSubmit} className="p-6 space-y-4">
                             {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded-lg text-sm">{error}</div>}
+
+                            {/* Aviso si solo notas */}
+                            {editando && soloNotas(editando.estado) && (
+                                <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-2 rounded-lg text-sm">
+                                    Este préstamo ya está activo. Solo puedes modificar las notas.
+                                </div>
+                            )}
+
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Cliente *</label>
                                 <select value={form.id_cliente} onChange={(e) => setForm({ ...form, id_cliente: e.target.value })}
-                                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" required>
+                                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none disabled:bg-gray-100 disabled:text-gray-500"
+                                        required disabled={editando && soloNotas(editando.estado)}>
                                     <option value="">Seleccionar cliente...</option>
                                     {clientes.map(c => <option key={c.id_cliente} value={c.id_cliente}>{c.nombre}</option>)}
                                 </select>
@@ -227,19 +281,22 @@ const Prestamos = () => {
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Monto a prestar *</label>
                                     <input type="number" step="0.01" value={form.monto_prestado} onChange={(e) => setForm({ ...form, monto_prestado: e.target.value })}
-                                           className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" required />
+                                           className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none disabled:bg-gray-100 disabled:text-gray-500"
+                                           required disabled={editando && soloNotas(editando.estado)} />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Tasa de interés (%) *</label>
                                     <input type="number" step="0.01" value={form.tasa_interes} onChange={(e) => setForm({ ...form, tasa_interes: e.target.value })}
-                                           className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" required />
+                                           className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none disabled:bg-gray-100 disabled:text-gray-500"
+                                           required disabled={editando && soloNotas(editando.estado)} />
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Frecuencia *</label>
                                     <select value={form.frecuencia_pago} onChange={(e) => setForm({ ...form, frecuencia_pago: e.target.value })}
-                                            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none">
+                                            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none disabled:bg-gray-100 disabled:text-gray-500"
+                                            disabled={editando && soloNotas(editando.estado)}>
                                         <option value="QUINCENAL">Quincenal</option>
                                         <option value="MENSUAL">Mensual</option>
                                     </select>
@@ -247,17 +304,19 @@ const Prestamos = () => {
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Número de cuotas *</label>
                                     <input type="number" value={form.numero_cuotas} onChange={(e) => setForm({ ...form, numero_cuotas: e.target.value })}
-                                           className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" required />
+                                           className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none disabled:bg-gray-100 disabled:text-gray-500"
+                                           required disabled={editando && soloNotas(editando.estado)} />
                                 </div>
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Fecha primer pago *</label>
                                 <input type="date" value={form.fecha_primer_pago} onChange={(e) => setForm({ ...form, fecha_primer_pago: e.target.value })}
-                                       className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" required />
+                                       className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none disabled:bg-gray-100 disabled:text-gray-500"
+                                       required disabled={editando && soloNotas(editando.estado)} />
                             </div>
 
-                            {/* Preview de cálculos */}
-                            {preview && (
+                            {/* Preview de cálculos - solo si es nuevo o SOLICITADO */}
+                            {preview && (!editando || esEditable(editando.estado)) && (
                                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-2 text-sm">
                                     <p className="font-semibold text-blue-800">Resumen del préstamo</p>
                                     <div className="grid grid-cols-3 gap-2">
@@ -274,9 +333,10 @@ const Prestamos = () => {
                                           className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" />
                             </div>
                             <div className="flex gap-3 pt-2">
-                                <button type="button" onClick={() => setModalOpen(false)} className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium">Cancelar</button>
+                                <button type="button" onClick={() => { setModalOpen(false); setEditando(null); }}
+                                        className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium">Cancelar</button>
                                 <button type="submit" className="flex-1 flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg hover:bg-blue-700 transition font-medium">
-                                    <Save className="w-4 h-4" /> Crear Préstamo
+                                    <Save className="w-4 h-4" /> {editando ? 'Guardar Cambios' : 'Crear Préstamo'}
                                 </button>
                             </div>
                         </form>
@@ -295,12 +355,17 @@ const Prestamos = () => {
                             </div>
                             <div className="flex items-center gap-2">
                                 <span className={`px-3 py-1 text-xs font-medium rounded-full ${estadoColor[detalleOpen.estado]}`}>{detalleOpen.estado}</span>
+                                {(esEditable(detalleOpen.estado) || soloNotas(detalleOpen.estado)) && (
+                                    <button onClick={() => { setDetalleOpen(null); setCuotasDetalle([]); abrirEditar(detalleOpen); }}
+                                            className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition" title="Editar">
+                                        <Pencil className="w-4 h-4" />
+                                    </button>
+                                )}
                                 <button onClick={() => { setDetalleOpen(null); setCuotasDetalle([]); }} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
                             </div>
                         </div>
 
                         <div className="p-6 space-y-6">
-                            {/* Info del préstamo */}
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
                                 <div className="bg-gray-50 rounded-lg p-3">
                                     <span className="text-gray-500">Monto prestado</span>
@@ -327,7 +392,13 @@ const Prestamos = () => {
                                 <div><span className="text-gray-500">Vencidas:</span> <span className={`font-medium ${detalleOpen.cuotas_vencidas > 0 ? 'text-red-600' : 'text-gray-600'}`}>{detalleOpen.cuotas_vencidas}</span></div>
                             </div>
 
-                            {/* Acciones */}
+                            {detalleOpen.notas && (
+                                <div className="bg-gray-50 rounded-lg p-3 text-sm">
+                                    <span className="text-gray-500">Notas:</span>
+                                    <p className="text-gray-700 mt-1">{detalleOpen.notas}</p>
+                                </div>
+                            )}
+
                             {detalleOpen.estado === 'SOLICITADO' && (
                                 <div className="flex gap-3">
                                     <button onClick={() => handleAprobar(detalleOpen.id_prestamo)} className="flex-1 flex items-center justify-center gap-2 bg-green-600 text-white px-4 py-2.5 rounded-lg hover:bg-green-700 transition font-medium">
@@ -345,7 +416,6 @@ const Prestamos = () => {
                                 </button>
                             )}
 
-                            {/* Tabla de cuotas */}
                             {cuotasDetalle.length > 0 && (
                                 <div>
                                     <h4 className="font-semibold text-gray-800 mb-3">Cuotas ({cuotasDetalle.length})</h4>
@@ -368,11 +438,11 @@ const Prestamos = () => {
                                                     <td className="px-4 py-2">{c.fecha_programada}</td>
                                                     <td className="px-4 py-2 font-medium">{formatMoney(c.monto_cuota)}</td>
                                                     <td className="px-4 py-2">
-                                                            <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
-                                                                c.estado === 'PAGADA' ? 'bg-green-100 text-green-700' :
-                                                                    c.estado === 'VENCIDA' ? 'bg-red-100 text-red-700' :
-                                                                        'bg-yellow-100 text-yellow-700'
-                                                            }`}>{c.estado}</span>
+                                                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+                                                            c.estado === 'PAGADA' ? 'bg-green-100 text-green-700' :
+                                                                c.estado === 'VENCIDA' ? 'bg-red-100 text-red-700' :
+                                                                    'bg-yellow-100 text-yellow-700'
+                                                        }`}>{c.estado}</span>
                                                         {c.dias_atraso > 0 && c.estado === 'VENCIDA' && <span className="text-xs text-red-500 ml-1">({c.dias_atraso}d)</span>}
                                                     </td>
                                                     <td className="px-4 py-2 text-gray-500">{c.fecha_pago || '—'}</td>
