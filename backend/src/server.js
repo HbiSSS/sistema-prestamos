@@ -9,7 +9,13 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middlewares
-app.use(cors());
+app.use(cors({
+    origin: [
+        'http://localhost:5173',
+        'https://tu-app.vercel.app'  // ← pon tu dominio real de Vercel aquí
+    ],
+    credentials: true
+}));
 app.use(express.json());
 
 // Ruta de prueba
